@@ -1,0 +1,11 @@
+-- AlterTable
+ALTER TABLE "ideas" ADD COLUMN "team_id" SERIAL,
+ADD COLUMN     "confidence" INTEGER,
+ADD COLUMN     "effort" INTEGER,
+ADD COLUMN     "impact" INTEGER,
+ADD COLUMN     "cost" INTEGER,
+ADD COLUMN     "channel" TEXT NOT NULL DEFAULT E'',
+ADD COLUMN     "name" TEXT NOT NULL DEFAULT E'';
+
+-- AddForeignKey
+ALTER TABLE "ideas" ADD FOREIGN KEY("team_id")REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;

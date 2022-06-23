@@ -1,0 +1,860 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  url      = "postgres://postgres:postgres@127.0.0.1:5432/truenorth"
+  provider = "postgresql"
+}
+
+
+enum Role {
+  ADMIN
+  MEMBER
+}
+
+enum Onboards {
+  USER
+  TEAM
+  PAYMENT
+  GOAL
+  FUNNEL
+  GOALTWO
+}
+
+enum CampaignOverrides {
+  NAME
+  STARTDATE
+  ENDDATE
+  BUDGET
+  DATE
+  SPEND
+  RESULT
+}
+
+enum CampaignState {
+  PENDING
+  COMPLETE
+}
+
+enum UserType {
+  PUBLIC
+  BETA
+  SUPERADMIN
+}
+
+enum ScenarioDataType {
+  START
+  GOAL
+  UPDATE
+}
+
+enum GoalDataType {
+  INPUT
+  TARGET
+  SPIKE_MILESTONE
+  PROPOGATE_MILESTONE
+  MILESTONE
+}
+
+enum NotificationType {
+  MENTION
+  CAMPAIGN
+  IDEA
+  OTHER
+}
+
+enum CommentType {
+  IDEA
+  CAMPAIGN
+  RETROSPECTIVE
+  PROGRESSDATAPOINT
+  CAMPAIGN_GROUP
+}
+
+enum TaskType {
+  CAMPAIGN
+  CAMPAIGN_GROUP
+}
+
+enum ProgressDataPointType {
+  MONTH
+}
+
+model User {
+  id String @id @default(cuid())
+
+  name           String?
+  email          String?   @unique
+  emailVerified  DateTime? @map(name: "email_verified")
+  image          String?
+  createdAt      DateTime  @default(now()) @map(name: "created_at")
+  updatedAt      DateTime  @updatedAt @map(name: "updated_at")
+  selectedTeam   Team?     @relation(fields: [selectedTeamId], references: [id])
+  selectedTeamId String?   @map(name: "selected_team_id")
+
+  teams             UserTeam[]
+  completedOnboards Onboards[]     @map(name: "completed_onboards")
+  goals             Goal[]
+  funnels           Funnel[]
+  tags              Tag[]
+  ideas             Idea[]
+  campaigns         Campaign[]
+  invites           TeamInvite[]
+  type              UserType       @default(PUBLIC)
+  IdeaSession       IdeaSession[]
+  Subscription      Subscription[]
+
+  Account       Account[]
+  GoalDataPoint GoalDataPoint[]
+
+  notifications     Notification[] @relation("received")
+  sentNotifications Notification[] @relation("sent")
+
+  acceptNotificationEmails Boolean @default(true)
+
+  comments Comment[]
+
+  Reaction            Reaction[]            @relation("reactors")
+  RetrospectiveAction RetrospectiveAction[]
+  Channel             Channel[]
+  integrations        Integration[]
+  integrationDefault  IntegrationDefault[]
+  campaignGroups      CampaignGroup[]
+  tasks               Task[]
+  @@map(name: "users")
+}
+
+model UserTeam {
+  user   User   @relation(fields: [userId], references: [id])
+  userId String @map(name: "user_id")
+  team   Team   @relation(fields: [teamId], references: [id])
+  teamId String @map(name: "team_id")
+
+  createdAt DateTime @default(now()) @map(name: "created_at")
+  role      Role
+
+  @@id([userId, teamId])
+  @@map(name: "user_teams")
+}
+
+model Account {
+  id String @id @default(cuid())
+
+  compoundId         String    @unique @map(name: "compound_id")
+  user               User      @relation(fields: [userId], references: [id])
+  userId             String    @map(name: "user_id")
+  providerType       String    @map(name: "provider_type")
+  providerId         String    @map(name: "provider_id")
+  providerAccountId  String    @map(name: "provider_account_id")
+  refreshToken       String?   @map(name: "refresh_token")
+  accessToken        String?   @map(name: "access_token")
+  accessTokenExpires DateTime? @map(name: "access_token_expires")
+  createdAt          DateTime  @default(now()) @map(name: "created_at")
+  updatedAt          DateTime  @updatedAt @map(name: "updated_at")
+
+
+  integration        Integration[]
+  integrationDefault IntegrationDefault[]
+
+  @@unique([userId, providerId])
+  @@index([providerAccountId], name: "providerAccountId")
+  @@index([providerId], name: "providerId")
+  @@index([userId], name: "userId")
+  @@map(name: "accounts")
+}
+
+model Session {
+  id String @id @default(cuid())
+
+  userId       String   @map(name: "user_id")
+  expires      DateTime
+  sessionToken String   @unique @map(name: "session_token")
+  accessToken  String   @unique @map(name: "access_token")
+  createdAt    DateTime @default(now()) @map(name: "created_at")
+  updatedAt    DateTime @updatedAt @map(name: "updated_at")
+
+  @@map(name: "sessions")
+}
+
+model VerificationRequest {
+  id String @id @default(cuid())
+
+  identifier String
+  token      String   @unique
+  expires    DateTime
+  createdAt  DateTime @default(now()) @map(name: "created_at")
+  updatedAt  DateTime @updatedAt @map(name: "updated_at")
+
+  @@map(name: "verification_requests")
+}
+
+// Ideas and Campaigns
+
+model Idea {
+  id     String @id @default(cuid())
+  user   User   @relation(fields: [userId], references: [id])
+  userId String @map(name: "user_id")
+  team   Team   @relation(fields: [teamId], references: [id])
+  teamId String @map(name: "team_id")
+
+  ideaSessionId String?      @map(name: "idea_session_id")
+  ideaSession   IdeaSession? @relation(fields: [ideaSessionId], references: [id])
+
+  confidence Int?
+  effort     Int?
+  impact     Int?
+  cost       Int?
+  priority   Int?
+
+  channel   Channel? @relation(fields: [channelId], references: [id])
+  channelId String?  @map(name: "channel_id")
+
+  kpi          FunnelNode? @relation(fields: [funnelNodeId], references: [id])
+  funnelNodeId String?     @map(name: "funnel_node_id")
+
+  name      String   @default("")
+  note      String   @default("")
+  createdAt DateTime @default(now()) @map(name: "created_at")
+  updatedAt DateTime @updatedAt @map(name: "updated_at")
+
+  tags Tag[]
+
+  comments Comment[]
+  @@map(name: "ideas")
+}
+
+model Retrospective {
+  id String @id @default(cuid())
+
+  team   Team   @relation(fields: [teamId], references: [id])
+  teamId String @map(name: "team_id")
+
+  month Int
+  year  Int
+
+  title       String?
+  description String?
+
+  progressDataPoint   ProgressDataPoint? @relation(name: "progress_data_point", fields: [progressDataPointId], references: [id])
+  progressDataPointId String?            @map(name: "progress_data_point_id")
+
+  actions RetrospectiveAction[]
+
+  active    Boolean  @default(false)
+  createdAt DateTime @default(now()) @map(name: "created_at")
+  updatedAt DateTime @updatedAt @map(name: "updated_at")
+  complete  Boolean  @default(false)
+  @@unique([progressDataPointId, month, year])
+  @@map(name: "retrospectives")
+}
+
+model RetrospectiveAction {
+  id              String        @id @default(cuid())
+  team            Team          @relation(fields: [teamId], references: [id])
+  teamId          String        @map(name: "team_id")
+  owner           User?         @relation(fields: [ownerId], references: [id])
+  ownerId         String?       @map(name: "owner_id")
+  retrospective   Retrospective @relation(fields: [retrospectiveId], references: [id])
+  retrospectiveId String        @map(name: "retrospective_id")
+  item            String
+  complete        Boolean
+  createdAt       DateTime      @default(now()) @map(name: "created_at")
+  updatedAt       DateTime      @updatedAt @map(name: "updated_at")
+
+  @@map(name: "retrospective_actions")
+}
+
+model Channel {
+  id   String @id @default(cuid())
+  name String
+
+  createdAt DateTime @default(now()) @map(name: "created_at")
+  updatedAt DateTime @updatedAt @map(name: "updated_at")
+
+  Campaign Campaign[]
+
+  owner   User?   @relation(fields: [ownerId], references: [id])
+  ownerId String? @map(name: "owner_id")
+
+  team   Team?   @relation(fields: [teamId], references: [id])
+  teamId String? @map(name: "team_id")
+
+  Idea Idea[]
+
+  @@map(name: "channel")
+}
+
+model Campaign {
+  id                   String                 @id @default(cuid())
+  user                 User                   @relation(fields: [userId], references: [id])
+  userId               String                 @map(name: "user_id")
+  team                 Team                   @relation(fields: [teamId], references: [id])
+  teamId               String                 @map(name: "team_id")
+  lastRun              DateTime?              @map(name: "last_run")
+  lastRunStatus        IntegrationStatusType? @map(name: "last_run_status")
+  confidence           Int?
+  effort               Int?
+  impact               Int?
+  cost                 Int?
+  priority             Int?
+  name                 String                 @default("")
+  note                 String                 @default("")
+  state                CampaignState          @default(PENDING)
+  channel              Channel?               @relation(fields: [channelId], references: [id])
+  channelId            String?                @map(name: "channel_id")
+  kpi                  FunnelNode?            @relation(fields: [funnelNodeId], references: [id])
+  funnelNodeId         String?                @map(name: "funnel_node_id")
+  resultHigh           Float?                 @map(name: "result_high")
+  resultLow            Float?                 @map(name: "result_low")
+  budgetHigh           Float?                 @map(name: "budget_high")
+  budgetLow            Float?                 @map(name: "budget_low")
+  actualRoi            Float?                 @map(name: "roi_actual")
+  predictedRoi         Float?                 @map(name: "roi_predicted")
+  roiLock              Boolean                @default(false) @map(name: "roi_lock")
+  createdAt            DateTime               @default(now()) @map(name: "created_at")
+  updatedAt            DateTime               @updatedAt @map(name: "updated_at")
+  start                DateTime?
+  end                  DateTime?
+  campaignOverrides    CampaignOverrides[]    @map(name: "campaign_overrides")
+  spendMetric          CampaignResultMetric?  @relation(name: "spend_metric", fields: [spendMetricId], references: [id])
+  spendMetricId        String?                @map(name: "spend_metric_id")
+  integration          Integration?           @relation(name: "integration", fields: [integrationId], references: [id])
+  integrationId        String?                @map(name: "integration_id")
+  integrationConfig    Json?                  @map(name: "integration_config")
+  tags                 Tag[]
+  comments             Comment[]
+  campaignResultMap    CampaignResultMap[]
+  campaignResultMetric CampaignResultMetric[]
+  campaignResult       CampaignResult[]
+  returnValue          Float?                 @map(name: "return_value")
+  campaignGroup        CampaignGroup?         @relation(name: "campaign_group", fields: [campaignGroupId], references: [id])
+  campaignGroupId      String?                @map(name: "campaign_group_id")
+  tasks                Task[]
+
+  @@map(name: "campaigns")
+}
+
+enum CampaignDataValueType {
+  RESULT
+  SPEND
+}
+
+model CampaignResult {
+  id                   String                @id @default(cuid())
+  campaign             Campaign?             @relation(fields: [campaignId], references: [id])
+  campaignId           String?               @map(name: "campaign_id")
+  campaignResultMetric CampaignResultMetric? @relation(fields: [campaignId, providerMetricName], references: [campaignId, providerMetricName])
+  providerMetricName   String                @map(name: "provider_metric_name")
+  value                Float
+  date                 DateTime
+  valueType            CampaignDataValueType @default(RESULT) @map(name: "value_type")
+  createdAt            DateTime              @default(now()) @map(name: "created_at")
+  updatedAt            DateTime              @updatedAt @map(name: "updated_at")
+
+  @@unique([campaignId, providerMetricName, date])
+  @@map(name: "campaign_result")
+}
+
+model CampaignResultMetric {
+  id                 String              @id @default(cuid())
+  providerMetricName String              @map(name: "provider_metric_name")
+  providerName       String              @map(name: "provider_name")
+  totalValue         Float               @map(name: "total_value")
+  campaign           Campaign            @relation(fields: [campaignId], references: [id])
+  campaignId         String              @map(name: "campaign_id")
+  createdAt          DateTime            @default(now()) @map(name: "created_at")
+  updatedAt          DateTime            @updatedAt @map(name: "updated_at")
+  campaignResult     CampaignResult[]
+  campaignResultMap  CampaignResultMap[]
+  spendCampaigns     Campaign[]          @relation("spend_metric")
+
+  @@unique([campaignId, providerMetricName])
+  @@map(name: "campaign_result_metric")
+}
+
+model CampaignResultMap {
+  kpi                  FunnelNode           @relation(fields: [funnelNodeId], references: [id])
+  funnelNodeId         String               @map(name: "funnel_node_id")
+  campaignResultMetric CampaignResultMetric @relation(fields: [campaignId, providerMetricName], references: [campaignId, providerMetricName])
+  campaign             Campaign             @relation(fields: [campaignId], references: [id])
+  campaignId           String               @map(name: "campaign_id")
+  providerMetricName   String               @map(name: "provider_metric_name")
+  createdAt            DateTime             @default(now()) @map(name: "created_at")
+  updatedAt            DateTime             @updatedAt @map(name: "updated_at")
+
+  @@id([campaignId, funnelNodeId])
+  @@map(name: "campaign_result_map")
+}
+
+enum IntegrationTaskType {
+  FUNNEL
+  CAMPAIGN
+  ACCOUNT
+  CAMPAIGNRESULT
+}
+
+enum IntegrationStatusType {
+  CREATED
+  ERROR
+  SUCCESS
+  CANCELLED
+  RUNNING
+}
+
+enum IntegrationScheduleType {
+  DAILY
+  WEEKLY
+  MONTHLY
+  ONCE
+}
+
+model Integration {
+  id                   String                  @id @default(cuid())
+  createdAt            DateTime                @default(now()) @map(name: "created_at")
+  updatedAt            DateTime                @default(now()) @map(name: "updated_at")
+  lastRun              DateTime                @default(now()) @map(name: "job_run")
+  owner                User                    @relation(fields: [ownerId], references: [id])
+  ownerId              String                  @map(name: "owner_id")
+  team                 Team                    @relation(fields: [teamId], references: [id])
+  teamId               String                  @map(name: "team_id")
+  account              Account?                @relation(fields: [accountId], references: [id])
+  accountId            String?                 @map(name: "integration_account_id")
+  funnelNode           FunnelNode?             @relation(fields: [funnelNodeId], references: [id])
+  funnelNodeId         String?                 @map(name: "funnel_node_id")
+  taskStatus           IntegrationStatusType   @map(name: "task_status")
+  taskType             IntegrationTaskType     @map(name: "task_type")
+  taskerIds            String[]                @map(name: "tasker_ids")
+  taskerSchedule       IntegrationScheduleType @map(name: "tasker_schedule")
+  progress             Float?
+  config               Json
+  resultTypes          Json?                   @map(name: "result_types")
+  goalDataPointValue   GoalDataPointValue[]
+  funnelDataPointValue FunnelDataPointValue[]
+  campaign             Campaign[]              @relation("integration")
+
+  @@map(name: "integration")
+}
+
+enum IntegrationDefaultType {
+  ACCOUNT
+  RESULTMAP
+}
+
+model IntegrationDefault {
+  createdAt DateTime               @default(now()) @map(name: "created_at")
+  updatedAt DateTime               @default(now()) @map(name: "updated_at")
+  account   Account                @relation(fields: [accountId], references: [id])
+  accountId String                 @map(name: "account_id")
+  owner     User                   @relation(fields: [ownerId], references: [id])
+  ownerId   String                 @map(name: "owner_id")
+  team      Team                   @relation(fields: [teamId], references: [id])
+  teamId    String                 @map(name: "team_id")
+  type      IntegrationDefaultType @map(name: "type")
+  config    Json                   @map(name: "config")
+
+  @@id([teamId, accountId, type])
+  @@map(name: "integration_default")
+}
+
+model Notification {
+  id         String           @id @default(cuid())
+  createdAt  DateTime         @default(now()) @map(name: "created_at")
+  title      String
+  content    String
+  link       String
+  type       NotificationType
+  user       User             @relation("received", fields: [userId], references: [id])
+  userId     String
+  fromUser   User?            @relation("sent", fields: [fromUserId], references: [id])
+  fromUserId String?
+  team       Team             @relation(fields: [teamId], references: [id])
+  read       Boolean          @default(false)
+  teamId     String
+
+  @@map(name: "notifications")
+}
+
+model Reaction {
+  id        String   @id @default(cuid())
+  name      String
+  updatedAt DateTime @default(now()) @map(name: "updated_at")
+  users     User[]   @relation("reactors")
+  comment   Comment  @relation(fields: [commentId], references: [id])
+  commentId String
+
+  @@map(name: "reactions")
+}
+
+model Comment {
+  id                  String             @id @default(cuid())
+  createdAt           DateTime           @default(now()) @map(name: "created_at")
+  content             String
+  type                CommentType
+  userId              String
+  campaign            Campaign?          @relation(fields: [campaignId], references: [id])
+  idea                Idea?              @relation(fields: [ideaId], references: [id])
+  progressDataPoint   ProgressDataPoint? @relation(fields: [progressDataPointId], references: [id])
+  user                User               @relation(fields: [userId], references: [id])
+  campaignId          String?
+  ideaId              String?
+  progressDataPointId String?
+  reactions           Reaction[]
+  campaignGroup       CampaignGroup?     @relation("campaign_group_comments", fields: [campaignGroupId], references: [id])
+  campaignGroupId     String?            @map(name: "campaign_group_id")
+
+  @@map(name: "comments")
+}
+
+model Team {
+  id                  String                @id @default(cuid())
+  name                String
+  industry            String
+  createdAt           DateTime              @default(now()) @map(name: "created_at")
+  updatedAt           DateTime              @updatedAt @map(name: "updated_at")
+  currency            String                @default("USD")
+  funnels             Funnel[]
+  campaigns           Campaign[]
+  ideas               Idea[]
+  selectedUsers       User[]
+  goals               Goal[]
+  members             UserTeam[]
+  invites             TeamInvite[]
+  tags                Tag[]
+  IdeaSession         IdeaSession[]
+  subscriptions       Subscription[]
+  Notification        Notification[]
+  Retrospective       Retrospective[]
+  RetrospectiveAction RetrospectiveAction[]
+  Channel             Channel[]
+  ProgressDataPoint   ProgressDataPoint[]
+  completedOnboards   Onboards[]            @map(name: "completed_onboards")
+  isDemo              Boolean               @default(false) @map(name: "is_demo")
+  hasCreatedCampaigns Boolean               @default(false) @map(name: "has_created_campaigns")
+  integration         Integration[]
+  integrationDefault  IntegrationDefault[]
+  campaignGroups      CampaignGroup[]
+  Task                Task[]
+
+  @@map(name: "teams")
+}
+
+model TeamInvite {
+  id        String   @id @default(cuid())
+  owner     User     @relation(fields: [ownerId], references: [id])
+  ownerId   String   @map(name: "owner_id")
+  team      Team     @relation(fields: [teamId], references: [id])
+  teamId    String   @map(name: "team_id")
+  createdAt DateTime @default(now()) @map(name: "created_at")
+  updatedAt DateTime @updatedAt @map(name: "updated_at")
+  token     String   @default(uuid())
+  role      Role
+  email     String
+  redirect  String?
+
+  @@map(name: "team_invites")
+}
+
+model ProgressDataPoint {
+  id                 String                @id @default(cuid())
+  type               ProgressDataPointType
+  goal               Goal                  @relation(fields: [goalId], references: [id])
+  goalId             String                @map(name: "goal_id")
+  team               Team                  @relation(fields: [teamId], references: [id])
+  teamId             String                @map(name: "team_id")
+  month              Int
+  year               Int
+  createdAt          DateTime              @default(now()) @map(name: "created_at")
+  updatedAt          DateTime              @default(now()) @updatedAt @map(name: "updated_at")
+  goalDataPointValue GoalDataPointValue[]
+  comments           Comment[]
+  retrospective      Retrospective[]       @relation("progress_data_point")
+
+  @@unique([goalId, month, year])
+  @@map(name: "progress_data_points")
+}
+
+model Goal {
+  id                String              @id @default(cuid())
+  owner             User                @relation(fields: [userId], references: [id])
+  userId            String              @map(name: "user_id")
+  team              Team                @relation(fields: [teamId], references: [id])
+  teamId            String              @map(name: "team_id")
+  funnel            Funnel              @relation(fields: [funnelId], references: [id])
+  funnelId          String              @map(name: "funnel_id")
+  metric            FunnelNode          @relation(fields: [funnelNodeId], references: [id])
+  funnelNodeId      String              @map(name: "metric") //trying to be sneaky
+  name              String?
+  createdAt         DateTime            @default(now()) @map(name: "created_at")
+  updatedAt         DateTime            @updatedAt @map(name: "updated_at")
+  start             DateTime?
+  target            DateTime?
+  value             Int
+  data              GoalDataPoint[]
+  progressDataPoint ProgressDataPoint[]
+
+  strategyDescription String? @map(name: "strategy_description")
+
+  @@unique([funnelId])
+  @@map(name: "goals")
+}
+
+model GoalDataPoint {
+  id        String               @id @default(cuid())
+  owner     User                 @relation(fields: [userId], references: [id])
+  userId    String               @map(name: "user_id")
+  type      GoalDataType
+  goal      Goal                 @relation(fields: [goalId], references: [id])
+  goalId    String               @map(name: "goal_id")
+  month     Int
+  year      Int
+  createdAt DateTime             @default(now()) @map(name: "created_at")
+  updatedAt DateTime             @default(now()) @updatedAt @map(name: "updated_at")
+  data      GoalDataPointValue[]
+
+  @@unique([goalId, month, year])
+  @@map(name: "goal_data_points")
+}
+
+enum GoalDataPointValueProvider {
+  MANUAL
+  INTEGRATION
+}
+
+model GoalDataPointValue {
+  id                  String                     @id @default(cuid())
+  dataPoint           GoalDataPoint?             @relation(fields: [dataPointId], references: [id])
+  dataPointId         String?                    @map(name: "data_point_id")
+  funnelNode          FunnelNode                 @relation(fields: [funnelNodeId], references: [id])
+  funnelNodeId        String                     @map(name: "funnel_node_id")
+  provider            GoalDataPointValueProvider @default(MANUAL)
+  integration         Integration?               @relation(fields: [integrationId], references: [id])
+  integrationId       String?                    @map(name: "integration_id")
+  value               Float
+  ProgressDataPoint   ProgressDataPoint?         @relation(fields: [progressDataPointId], references: [id])
+  progressDataPointId String?                    @map(name: "progress_data_point_id")
+
+  statement StatementTracking? @map(name: "statement")
+
+  @@unique([dataPointId, funnelNodeId])
+  @@map(name: "goal_data_point_values")
+}
+
+enum StatementTracking {
+  CONVERSION
+  ABSOLUTE
+}
+
+model IdeaSession {
+  id            String      @id @default(cuid())
+  requestedById String      @map(name: "requested_by_id")
+  requestedBy   User        @relation(fields: [requestedById], references: [id])
+  userId        String?     @map(name: "user_id")
+  teamId        String      @map(name: "team_id")
+  team          Team        @relation(fields: [teamId], references: [id])
+  name          String
+  numberOfIdeas Int
+  tag           Tag?        @relation(fields: [tagId], references: [id])
+  tagId         String?     @map(name: "tag_id")
+  kpi           FunnelNode? @relation(fields: [funnelNodeId], references: [id])
+  funnelNodeId  String?     @map(name: "funnel_node_id")
+  completed     Boolean     @default(false)
+  deadline      DateTime?
+  ideas         Idea[]
+
+  @@map(name: "idea_sessions")
+}
+
+model Funnel {
+  id              String                 @id @default(cuid())
+  owner           User                   @relation(fields: [userId], references: [id])
+  userId          String                 @map(name: "user_id")
+  team            Team                   @relation(fields: [teamId], references: [id])
+  teamId          String                 @map(name: "team_id")
+  name            String?
+  createdAt       DateTime               @default(now()) @map(name: "created_at")
+  updatedAt       DateTime               @updatedAt @map(name: "updated_at")
+  nodes           FunnelNode[]
+  edges           FunnelEdge[]
+  dataPointValues FunnelDataPointValue[]
+  goals           Goal[]
+
+  @@index([teamId], name: "funnelTeamId")
+  @@index([userId], name: "funnelUserId")
+  @@map(name: "funnels")
+}
+
+model FunnelNode {
+  id                 String                 @id @default(cuid())
+  funnel             Funnel                 @relation(fields: [funnelId], references: [id])
+  funnelId           String                 @map(name: "funnel_id")
+  name               String
+  isRevenue          Boolean?               @default(false) @map(name: "is_revenue")
+  order              Int?
+  fromEdges          FunnelEdge[]           @relation("FromNodes")
+  toEdges            FunnelEdge[]           @relation("ToNodes")
+  dataPointValues    FunnelDataPointValue[]
+  campaigns          Campaign[]
+  // Not really useful, but required by Prisma
+  Idea               Idea[]
+  IdeaSession        IdeaSession[]
+  GoalDataPointValue GoalDataPointValue[]
+  Goal               Goal[]
+  integration        Integration[]
+  campaignResultMap  CampaignResultMap[]
+  campaignGroups     CampaignGroup[]
+
+  @@unique([funnelId, name])
+  @@index([funnelId], name: "funnelNodeFunnelId")
+  @@map(name: "funnel_nodes")
+}
+
+enum FunnelDataPointSource {
+  ONBOARD
+  INTEGRATION
+  MANUAL_OVERRIDE
+}
+
+model FunnelDataPointValue {
+  id            String                @id @default(cuid())
+  funnel        Funnel                @relation(fields: [funnelId], references: [id])
+  funnelId      String                @map(name: "funnel_id")
+  node          FunnelNode            @relation(fields: [nodeId], references: [id])
+  nodeId        String                @map(name: "node_id")
+  source        FunnelDataPointSource @default(ONBOARD)
+  integration   Integration?          @relation(fields: [integrationId], references: [id])
+  integrationId String?
+  date          DateTime
+  createdAt     DateTime              @default(now()) @map(name: "created_at")
+  updatedAt     DateTime              @updatedAt @map(name: "updated_at")
+  value         Float
+
+  @@unique([nodeId, date, source])
+  @@index([nodeId], name: "funnelDataPointValueNodeId")
+  @@map(name: "funnel_datapoint_value")
+}
+
+model FunnelEdge {
+  id         String     @id @default(cuid())
+  funnel     Funnel     @relation(fields: [funnelId], references: [id])
+  funnelId   String     @map(name: "funnel_id")
+  from       FunnelNode @relation("FromNodes", fields: [fromNodeId], references: [id])
+  fromNodeId String     @map(name: "from_node_id")
+  to         FunnelNode @relation("ToNodes", fields: [toNodeId], references: [id])
+  toNodeId   String     @map(name: "to_node_id")
+  createdAt  DateTime   @default(now()) @map(name: "created_at")
+
+  @@index([funnelId], name: "funnelEdgeFunnelId")
+  @@index([fromNodeId], name: "funnelEdgeFromNodeId")
+  @@index([toNodeId], name: "funnelEdgeToNodeId")
+  @@map(name: "funnel_edges")
+}
+
+model Tag {
+  id          String        @id @default(cuid())
+  owner       User          @relation(fields: [userId], references: [id])
+  userId      String        @map(name: "user_id")
+  team        Team          @relation(fields: [teamId], references: [id])
+  teamId      String        @map(name: "team_id")
+  name        String
+  createdAt   DateTime      @default(now()) @map(name: "created_at")
+  updatedAt   DateTime      @updatedAt @map(name: "updated_at")
+  ideas       Idea[]
+  campaigns   Campaign[]
+  // Not really useful
+  IdeaSession IdeaSession[]
+
+  @@unique([teamId, name])
+  @@map(name: "tags")
+}
+
+enum SubscriptionStatus {
+  INITIAL
+  INCOMPLETE
+  INCOMPLETE_EXPIRED
+  TRIALING
+  TRIAL_EXPIRED // trial has ended
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  UNPAID
+}
+
+model Subscription {
+  id             String              @id @default(cuid())
+  status         SubscriptionStatus
+  owner          User                @relation(fields: [userId], references: [id])
+  userId         String              @map(name: "user_id")
+  team           Team                @relation(fields: [teamId], references: [id])
+  teamId         String              @map(name: "team_id")
+  createdAt      DateTime            @default(now()) @map(name: "created_at")
+  updatedAt      DateTime            @updatedAt @map(name: "updated_at")
+  ends           DateTime            @map(name: "end_date")
+  // These are the variables from Stripe
+  priceId        String?             @map(name: "price_id")
+  productId      String?             @map(name: "product_id")
+  sessionId      String?             @map(name: "session_id")
+  customerId     String?             @map(name: "customer_id")
+  subscriptionId String?             @unique @map(name: "subscription_id")
+  couponId       String?             @map(name: "coupon_id")
+  events         SubscriptionEvent[]
+
+  @@map(name: "subscriptions")
+}
+
+model SubscriptionEvent {
+  id             String             @id @default(cuid())
+  type           SubscriptionStatus
+  update         Boolean            @default(false)
+  subscription   Subscription       @relation(fields: [subscriptionId], references: [id])
+  subscriptionId String             @map(name: "subscription_id")
+  createdAt      DateTime           @default(now()) @map(name: "created_at")
+  start          DateTime?
+  end            DateTime?
+
+  @@map(name: "subscription_events")
+}
+
+model CampaignGroup {
+  id             String      @id @default(cuid())
+  team           Team        @relation(fields: [teamId], references: [id])
+  teamId         String      @map(name: "team_id")
+  owner          User?       @relation(fields: [ownerId], references: [id])
+  ownerId        String?     @map(name: "owner_id")
+  title          String?
+  description    String?
+  emoji          String?
+  comments       Comment[]   @relation("campaign_group_comments")
+  createdAt      DateTime    @default(now()) @map(name: "created_at")
+  updatedAt      DateTime    @default(now()) @map(name: "updated_at")
+  campaigns      Campaign[]  @relation("campaign_group")
+  kpi            FunnelNode? @relation(fields: [funnelNodeId], references: [id])
+  funnelNodeId   String?     @map(name: "funnel_node_id")
+  expectedSpend  Int?        @map(name: "expected_spend")
+  expectedResult Int?        @map(name: "expected_result")
+  tasks          Task[]
+
+  @@map(name: "campaign_groups")
+}
+
+model Task {
+  id              String         @id @default(cuid())
+  createdAt       DateTime       @default(now()) @map(name: "created_at")
+  content         String
+  type            TaskType
+  userId          String         @map(name: "user_id")
+  campaignId      String?        @map(name: "campaign_id")
+  completed       Boolean        @default(false)
+  campaign        Campaign?      @relation(fields: [campaignId], references: [id])
+  campaignGroup   CampaignGroup? @relation(fields: [campaignGroupId], references: [id])
+  user            User           @relation(fields: [userId], references: [id])
+  campaignGroupId String?        @map(name: "campaign_group_id")
+  team            Team           @relation(fields: [teamId], references: [id])
+  teamId          String         @map(name: "team_id")
+
+
+  @@map(name: "tasks")
+}

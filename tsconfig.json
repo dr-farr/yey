@@ -1,12 +1,26 @@
 {
   "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "*": ["*", "adapters/*"]
+    },
     "target": "ES2018",
     "module": "commonjs",
     "lib": ["esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
     "strict": false,
-    "rootDir": ".",
-    "outDir": "dist",
-    "sourceMap": true,
-    "esModuleInterop": true
-  }
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "jsx": "preserve",
+    "isolatedModules": true,
+    "downlevelIteration": true,
+    "experimentalDecorators": true
+  },
+
+  "include": ["**/*.ts", "**/*.tsx"]
 }

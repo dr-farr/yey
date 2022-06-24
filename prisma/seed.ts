@@ -675,7 +675,50 @@ async function main() {
   }
 }
 
-main()
+async function testData() {
+  // Prisma create query to seed models in database
+  const user = await prisma.user.create({
+    data: {
+      name: 'User With Data',
+      image: 'https://www.fillmurray.com/100/100',
+      type: UserType.BETA,
+      completedOnboards: [Onboards.FUNNEL, Onboards.GOALTWO, Onboards.TEAM, Onboards.USER],
+      id: 'TEST_USER_1',
+      email: 'bill@test.com',
+      teams: {
+        create: {
+          role: Role.ADMIN,
+          team: {
+            create: {
+              id: 'TEST_TEAM_1',
+              name: 'Data Team',
+              industry: 'SaaS',
+            },
+          },
+        },
+      },
+    },
+    select: {
+      id: true,
+      teams: true,
+    },
+  });
+
+  print('Created', '[TEST]: a User & Team');
+
+  const session = await prisma.session.create({
+    data: {
+      accessToken: 'I_AM_A_TEAPOT',
+      expires: dayjs().add(4, 'month').toISOString(),
+      userId: user.id,
+      sessionToken: 'I_AM_A_TEAPOT',
+    },
+  });
+
+  print('Created', '[TEST]: a SESSION');
+}
+
+Promise.all([main(), testData()])
   .catch((e) => {
     console.error(e);
     process.exit(1);

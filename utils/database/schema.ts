@@ -1,25 +1,18 @@
-import { join } from 'path';
-import * as types from './graphql';
 import { makeSchema, fieldAuthorizePlugin } from 'nexus';
 import { nexusSchemaPrisma } from 'nexus-plugin-prisma/schema';
-import { GraphQLScalarType } from 'graphql';
-import { db } from './db';
 import path from 'path';
+import { applyMiddleware } from 'graphql-middleware';
+import * as controllers from 'controllers';
+import { GraphQLScalarType } from 'graphql';
+import prisma from 'utils/database/prisma';
 
-export const schema = makeSchema({
-  types,
-  outputs: {
-    typegen: join(__dirname, '..', 'nexus-typegen.ts'), // 2
-    schema: join(__dirname, '..', 'schema.graphql'), // 3
-  },
-  contextType: {
-    module: join(__dirname, './context.ts'),
-    export: 'Context',
-  },
+const baseSchema = makeSchema({
+  types: controllers,
+  shouldGenerateArtifacts: process.env.NODE_ENV === 'development',
   plugins: [
     nexusSchemaPrisma({
       shouldGenerateArtifacts: process.env.NODE_ENV === 'development',
-      prismaClient: () => db,
+      prismaClient: () => prisma,
       scalars: {
         DateTime: new GraphQLScalarType({
           name: 'DateTime',
@@ -44,4 +37,22 @@ export const schema = makeSchema({
     }),
     fieldAuthorizePlugin(),
   ],
+  outputs: {
+    schema: path.join(process.cwd(), 'schema.graphql'),
+    typegen: path.join(process.cwd(), 'nexus-typegen.ts'),
+  },
+  contextType: {
+    module: path.join(process.cwd(), 'utils', 'database', 'context.ts'),
+    export: 'Context',
+  },
+  sourceTypes: {
+    modules: [
+      {
+        module: '@prisma/client',
+        alias: 'prisma',
+      },
+    ],
+  },
 });
+
+export const schema = applyMiddleware(baseSchema);
